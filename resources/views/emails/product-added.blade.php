@@ -89,7 +89,7 @@
         </table>
         
         <p>
-            <a href="{{ url('/dashboard/inventory') }}" class="btn">View Inventory</a>
+            <a href="{{ url('/dashboard/inventory') }}" class="btn">View Inventory | Lihat Inventaris</a>
         </p>
         
         <p>Thank you for using our inventory management system.</p>
