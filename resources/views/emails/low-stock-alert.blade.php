@@ -81,7 +81,7 @@
         
         <p>Thank you for your immediate attention to this matter.</p>
         
-        <p>Regards,<br>{{ $umkmName }} Inventory System</p>
+        <p>Regards,Martin Haraxxxx<br>{{ $umkmName }} Inventory System</p>
     </div>
     
     <div class="footer">
