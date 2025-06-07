@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { updateUmkm, getMyUmkm } from "../../../_service/umkm";
+import Swal from 'sweetalert2';
 
 export default function EditUMKM() {
     const navigate = useNavigate();
@@ -95,8 +96,15 @@ export default function EditUMKM() {
                 localStorage.setItem('user', JSON.stringify(userData));
             }
             
-            // Show success message and redirect
-            alert("UMKM data updated successfully!");
+            // Show success notification with SweetAlert2
+            await Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'Data UMKM berhasil diperbarui.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#7C3AED'
+            });
+            
             navigate("/admin");
         } catch (error) {
             setError("Failed to update UMKM. Please try again.");
@@ -155,7 +163,7 @@ export default function EditUMKM() {
                             )}
 
                             {/* Current Data Display */}
-                            {/* {originalData.namaUmkm && !isLoadingData && (
+                            {originalData.namaUmkm && !isLoadingData && (
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                                     <h3 className="font-semibold text-blue-800 mb-3">Data UMKM Saat Ini:</h3>
                                     <div className="text-sm text-blue-700 space-y-2">
@@ -177,7 +185,7 @@ export default function EditUMKM() {
                                         </div>
                                     </div>
                                 </div>
-                            )} */}
+                            )}
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Nama UMKM */}

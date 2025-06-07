@@ -1,14 +1,56 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FaUserCircle, FaBars, FaTimes, FaCog, FaSignOutAlt, FaUser } from "react-icons/fa";
 
 export default function NavbarDashboard() {
   const [dropdownLaporan, setDropdownLaporan] = useState(false);
   const [dropdownProfile, setDropdownProfile] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [petugasName, setPetugasName] = useState("Petugas User");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   const navRef = useRef(null);
+  const navigate = useNavigate();
   
+  // Check authentication and petugas role
+  useEffect(() => {
+    const checkAuth = () => {
+      try {
+        const token = localStorage.getItem('token');
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        // Check if user is logged in and has petugas role
+        if (!token || !userData || userData.role !== 'petugas') {
+          // Redirect to login if not authenticated or not petugas
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/login');
+          return;
+        }
+        
+        // Set user data if authenticated as petugas
+        setIsAuthenticated(true);
+        if (userData.name) {
+          setPetugasName(userData.name);
+        }
+      } catch (error) {
+        console.error("Error checking authentication:", error);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
@@ -27,6 +69,11 @@ export default function NavbarDashboard() {
     setDropdownProfile(false);
   };
 
+  // Don't render navbar if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <nav ref={navRef} className="sticky top-0 flex items-center justify-between px-4 md:px-6 py-3 bg-[linear-gradient(to_right,_#F4F7FA,_#6817FF)] z-50">
       <div className="flex items-center gap-2">
@@ -44,10 +91,10 @@ export default function NavbarDashboard() {
 
       {/* Desktop Navigation */}
       <ul className="hidden md:flex items-center gap-6 relative">
-        <li><Link to="/petugas" className="hover:text-purple-600 font-medium">Home</Link></li>
-        <li><Link to="/petugas/supplier" className="hover:text-purple-600 font-medium">Supplier</Link></li>
-        <li><Link to="/petugas/kategori" className="hover:text-purple-600 font-medium">Kategori</Link></li>
-        <li><Link to="/petugas/barang" className="hover:text-purple-600 font-medium">Barang</Link></li>
+        <li><Link to="/petugas" className="hover:text-sky-50 font-medium">Home</Link></li>
+        <li><Link to="/petugas/supplier" className="hover:text-sky-50 font-medium">Supplier</Link></li>
+        <li><Link to="/petugas/kategori" className="hover:text-sky-50 font-medium">Kategori</Link></li>
+        <li><Link to="/petugas/barang" className="hover:text-sky-50 font-medium">Barang</Link></li>
 
         {/* Dropdown Laporan */}
         <li className="relative">
@@ -56,7 +103,7 @@ export default function NavbarDashboard() {
               setDropdownLaporan(!dropdownLaporan);
               setDropdownProfile(false);
             }}
-            className="hover:text-purple-600 font-medium flex items-center gap-1"
+            className="hover:text-sky-50 font-medium flex items-center gap-1"
           >
             Laporan <span className="text-xs">▾</span>
           </button>
@@ -82,22 +129,25 @@ export default function NavbarDashboard() {
           {dropdownProfile && (
             <ul className="absolute top-full right-0 mt-2 bg-white border rounded shadow-lg w-44 z-10 py-1">
               <li className="border-b border-gray-100 py-2 px-4 flex items-center">
-                <span className="font-medium text-sm">Admin User</span>
+                <span className="font-medium text-sm">{petugasName}</span>
               </li>
               <li>
-                <Link to="/admin/profile" className="block px-4 py-2 hover:bg-purple-50 text-gray-700 flex items-center gap-2">
+                <Link to="/petugas/profile" className="block px-4 py-2 hover:bg-purple-50 text-gray-700 flex items-center gap-2">
                   <FaUser className="text-gray-500" /> My Profile
                 </Link>
               </li>
               <li>
-                <Link to="/admin/settings" className="block px-4 py-2 hover:bg-purple-50 text-gray-700 flex items-center gap-2">
+                <Link to="/petugas/settings" className="block px-4 py-2 hover:bg-purple-50 text-gray-700 flex items-center gap-2">
                   <FaCog className="text-gray-500" /> Settings
                 </Link>
               </li>
               <li className="border-t border-gray-100">
-                <Link to="/logout" className="block px-4 py-2 hover:bg-purple-50 text-red-600 flex items-center gap-2">
+                <button 
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 hover:bg-purple-50 text-red-600 flex items-center gap-2"
+                >
                   <FaSignOutAlt className="text-red-500" /> Logout
-                </Link>
+                </button>
               </li>
             </ul>
           )}
@@ -197,12 +247,12 @@ export default function NavbarDashboard() {
             <li className="pt-4">
               <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
                 <FaUserCircle className="text-3xl text-gray-700" />
-                <span className="font-medium">Admin User</span>
+                <span className="font-medium">{petugasName}</span>
               </div>
             </li>
             <li>
               <Link 
-                to="/admin/profile" 
+                to="/petugas/profile" 
                 className="flex items-center gap-2 py-2 hover:text-purple-600"
                 onClick={() => setMobileMenuOpen(false)}
               >
@@ -211,7 +261,7 @@ export default function NavbarDashboard() {
             </li>
             <li>
               <Link 
-                to="/admin/settings" 
+                to="/petugas/settings" 
                 className="flex items-center gap-2 py-2 hover:text-purple-600"
                 onClick={() => setMobileMenuOpen(false)}
               >
@@ -219,13 +269,12 @@ export default function NavbarDashboard() {
               </Link>
             </li>
             <li className="border-t border-gray-100 mt-4 pt-2">
-              <Link 
-                to="/logout" 
+              <button 
+                onClick={handleLogout}
                 className="flex items-center gap-2 py-2 text-red-600"
-                onClick={() => setMobileMenuOpen(false)}
               >
                 <FaSignOutAlt className="text-red-500" /> Logout
-              </Link>
+              </button>
             </li>
           </ul>
         </div>
