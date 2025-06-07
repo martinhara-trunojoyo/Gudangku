@@ -1,10 +1,58 @@
 import { useState } from "react";
 import { FaEnvelope, FaLock } from "react-icons/fa";
 import { HiEye, HiEyeOff } from "react-icons/hi";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { login } from "../../../_service/auth";
+
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "admin@gmail.com",
+    password: ""
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await login(formData.email, formData.password);
+      console.log("Login successful:", response);
+      
+      // Store token and user data
+      localStorage.setItem('token', response.authorization.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      
+      // Navigate based on user role
+      const userRole = response.user.role;
+      if (userRole === 'admin') {
+        navigate('/admin');
+      } else if (userRole === 'petugas') {
+        navigate('/petugas');
+      } else {
+        // Default fallback or handle other roles
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      setError( "Login failed. Please try again.");
+      console.error("Login error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#eaebf6] px-4">
@@ -25,7 +73,13 @@ export default function Login() {
               Log in
             </h2>
 
-            <form className="space-y-4">
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
+
+            <form className="space-y-4" onSubmit={handleSubmit}>
               {/* Email */}
               <div>
                 <label className="block text-sm font-medium mb-1">Email</label>
@@ -33,7 +87,10 @@ export default function Login() {
                   <FaEnvelope className="text-gray-500 mr-2" />
                   <input
                     type="email"
-                    defaultValue="admin@gmail.com"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    required
                     className="w-full bg-transparent focus:outline-none"
                   />
                 </div>
@@ -46,7 +103,11 @@ export default function Login() {
                   <FaLock className="text-gray-500 mr-2" />
                   <input
                     type={showPassword ? "text" : "password"}
-                    defaultValue="************"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    required
+                    placeholder="Enter your password"
                     className="w-full bg-transparent focus:outline-none"
                   />
                   <button
@@ -86,9 +147,10 @@ export default function Login() {
               {/* Tombol */}
               <button
                 type="submit"
-                className="w-full bg-[#6556e8] text-white py-3 rounded-md font-semibold hover:bg-[#5849d6] transition mt-4"
+                disabled={isLoading}
+                className="w-full bg-[#6556e8] text-white py-3 rounded-md font-semibold hover:bg-[#5849d6] transition mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Log in
+                {isLoading ? "Logging in..." : "Log in"}
               </button>
             </form>
           </div>

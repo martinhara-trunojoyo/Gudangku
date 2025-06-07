@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { FaLock, FaLockOpen } from "react-icons/fa";
 import { HiEye, HiEyeOff } from "react-icons/hi";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { resetPassword } from "../../../_service/auth";
 
 export default function ResetPassword() {
   const [passwords, setPasswords] = useState({
@@ -17,6 +18,11 @@ export default function ResetPassword() {
   const [isSuccess, setIsSuccess] = useState(false);
   
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // Get token and email from URL parameters
+  const token = searchParams.get('token');
+  const email = searchParams.get('email');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -35,8 +41,14 @@ export default function ResetPassword() {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Check if token and email are present
+    if (!token || !email) {
+      setError("Invalid reset link. Please request a new password reset.");
+      return;
+    }
     
     // Simple validation
     if (passwords.password.length < 8) {
@@ -50,18 +62,29 @@ export default function ResetPassword() {
     }
 
     setIsSubmitting(true);
+    setError("");
     
-    // Simulate API call
-    setTimeout(() => {
-      console.log("Password reset with:", passwords.password);
-      setIsSubmitting(false);
+    try {
+      const response = await resetPassword({
+        token,
+        email,
+        password: passwords.password,
+        password_confirmation: passwords.confirmPassword
+      });
+      
+      console.log("Password reset successful:", response);
       setIsSuccess(true);
       
       // Redirect to login after 2 seconds
       setTimeout(() => {
         navigate("/login");
       }, 2000);
-    }, 1000);
+    } catch (error) {
+      setError("Failed to reset password. Please try again or request a new reset link.");
+      console.error("Reset password error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -136,8 +159,8 @@ export default function ResetPassword() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full bg-[#6556e8] text-white py-3 rounded-md font-semibold hover:bg-[#5849d6] transition flex items-center justify-center"
+                disabled={isSubmitting || !token || !email}
+                className="w-full bg-[#6556e8] text-white py-3 rounded-md font-semibold hover:bg-[#5849d6] transition flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <>
