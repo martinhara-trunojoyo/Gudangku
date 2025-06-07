@@ -107,19 +107,22 @@ class UmkmController extends Controller
             ], 400);
         }
 
-        // Validate that at least one field is provided
-        if (empty($request->all())) {
+        // 1. Mencari data
+        $umkm = Umkm::find(Auth::user()->umkm_id);
+
+        if (!$umkm) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'No data provided for update'
-            ], 422);
+                'message' => 'UMKM not found'
+            ], 404);
         }
 
+        // 2. Validator
         $validator = Validator::make($request->all(), [
-            'nama_umkm' => 'sometimes|required|string|max:255',
-            'pemilik' => 'sometimes|required|string|max:255',
-            'alamat' => 'sometimes|required|string|max:255',
-            'kontak' => 'sometimes|required|string|max:255'
+            'nama_umkm' => 'required|string|max:255',
+            'pemilik' => 'required|string|max:255',
+            'alamat' => 'required|string|max:255',
+            'kontak' => 'required|string|max:255'
         ]);
 
         if ($validator->fails()) {
@@ -130,51 +133,24 @@ class UmkmController extends Controller
             ], 422);
         }
 
-        try {
-            $umkm = Umkm::findOrFail(Auth::user()->umkm_id);
-            
-            // Get only the fields that are present in the request
-            $updateData = [];
-            if ($request->has('nama_umkm') && !empty($request->nama_umkm)) {
-                $updateData['nama_umkm'] = $request->nama_umkm;
-            }
-            if ($request->has('pemilik') && !empty($request->pemilik)) {
-                $updateData['pemilik'] = $request->pemilik;
-            }
-            if ($request->has('alamat') && !empty($request->alamat)) {
-                $updateData['alamat'] = $request->alamat;
-            }
-            if ($request->has('kontak') && !empty($request->kontak)) {
-                $updateData['kontak'] = $request->kontak;
-            }
+        // 3. Siapkan data yang ingin di update
+        $data = [
+            'nama_umkm' => $request->nama_umkm,
+            'pemilik' => $request->pemilik,
+            'alamat' => $request->alamat,
+            'kontak' => $request->kontak
+        ];
 
-            // Check if there's data to update
-            if (empty($updateData)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No valid data provided for update'
-                ], 422);
-            }
+        // 4. Update data baru ke database
+        $umkm->update($data);
 
-            $umkm->update($updateData);
-            
-            // Refresh the model to get updated data
-            $umkm->refresh();
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'UMKM updated successfully',
-                'data' => $umkm
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to update UMKM',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'status' => 'success',
+            'message' => 'UMKM updated successfully',
+            'data' => $umkm
+        ], 200);
     }
+
 
     public function show()
     {
