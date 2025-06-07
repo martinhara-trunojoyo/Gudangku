@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaEnvelope, FaLock } from "react-icons/fa";
 import { HiEye, HiEyeOff } from "react-icons/hi";
 import { Link, useNavigate } from "react-router-dom";
@@ -8,12 +8,44 @@ import { login } from "../../../_service/auth";
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    email: "admin@gmail.com",
+    email: "",
     password: ""
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const navigate = useNavigate();
+
+  // Check if user is already authenticated
+  useEffect(() => {
+    const checkExistingAuth = () => {
+      try {
+        const token = localStorage.getItem('token');
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        
+        if (token && userData && userData.role) {
+          // User is already authenticated, redirect to their dashboard
+          if (userData.role === 'admin') {
+            navigate('/admin');
+          } else if (userData.role === 'petugas') {
+            navigate('/petugas');
+          } else {
+            navigate('/dashboard');
+          }
+          return;
+        }
+      } catch (error) {
+        console.error("Error checking existing auth:", error);
+        // Clear corrupted data
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checkExistingAuth();
+  }, [navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -54,6 +86,18 @@ export default function Login() {
     }
   };
 
+  // Show loading while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#eaebf6]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[#6556e8] mx-auto"></div>
+          <p className="mt-4 text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#eaebf6] px-4">
       <div className="max-w-6xl w-full flex flex-col md:flex-row items-center bg-white rounded-lg overflow-hidden">
@@ -90,6 +134,7 @@ export default function Login() {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
+                    placeholder="Enter your email"
                     required
                     className="w-full bg-transparent focus:outline-none"
                   />

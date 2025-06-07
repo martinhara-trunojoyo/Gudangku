@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createUmkm } from "../../../_service/umkm";
+import Swal from 'sweetalert2';
 
 export default function TambahUMKM() {
     const navigate = useNavigate();
@@ -46,6 +47,15 @@ export default function TambahUMKM() {
 
             const response = await createUmkm(umkmData, token);
             console.log("UMKM created successfully:", response);
+            
+            // Show success notification with SweetAlert2
+            await Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'UMKM berhasil didaftarkan.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#7C3AED'
+            });
             
             // Redirect to admin dashboard after successful submission
             navigate("/admin");

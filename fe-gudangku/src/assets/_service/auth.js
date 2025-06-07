@@ -71,5 +71,37 @@ export const resetPassword = async ({ token, email, password, password_confirmat
   }
 };
 
+export const validateToken = async (token) => {
+  try {
+    const { data } = await API.get("/me", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return data;
+  } catch (error) {
+    console.log("Token validation error:", error);
+    throw error.response ? error.response.data : "Token validation failed.";
+  }
+};
+
+export const checkAuthStatus = () => {
+  try {
+    const token = localStorage.getItem('token');
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (!token || !userData || !userData.role) {
+      return { isAuthenticated: false, user: null, token: null };
+    }
+    
+    return { isAuthenticated: true, user: userData, token };
+  } catch (error) {
+    console.error("Error checking auth status:", error);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    return { isAuthenticated: false, user: null, token: null };
+  }
+};
+
 
 
