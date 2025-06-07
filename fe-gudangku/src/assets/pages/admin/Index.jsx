@@ -1,6 +1,44 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { getMyUmkm } from "../../_service/umkm";
 
 export default function HeroDashboard() {
+  const [adminName, setAdminName] = useState("Admin");
+  const [hasUmkm, setHasUmkm] = useState(false);
+  const [isLoadingUmkm, setIsLoadingUmkm] = useState(true);
+
+  useEffect(() => {
+    // Get user data from localStorage
+    try {
+      const userData = JSON.parse(localStorage.getItem('user'));
+      if (userData && userData.name) {
+        setAdminName(userData.name);
+      }
+    } catch (error) {
+      console.error("Error loading user data:", error);
+    }
+
+    // Check if admin has UMKM
+    const checkUmkmStatus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (token) {
+          const response = await getMyUmkm(token);
+          if (response && response.data) {
+            setHasUmkm(true);
+          }
+        }
+      } catch (error) {
+        // If error occurs (like 400 - no UMKM), admin doesn't have UMKM
+        setHasUmkm(false);
+      } finally {
+        setIsLoadingUmkm(false);
+      }
+    };
+
+    checkUmkmStatus();
+  }, []);
+
   return (
     <div
       id="hero"
@@ -11,7 +49,7 @@ export default function HeroDashboard() {
           {/* Left Content */}
           <div className="w-full lg:w-1/2 max-w-2xl text-center lg:text-left">
             <div className="inline-flex items-center px-4 py-2 bg-violet-100 text-violet-700 rounded-full text-sm font-medium mb-6">
-              Hello, Admin! 👋
+              Hello, {adminName}! 👋
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-900 leading-tight mb-6">
@@ -26,9 +64,19 @@ export default function HeroDashboard() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-              <Link to="/admin/registrasi-umkm" className="bg-purple-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-purple-700 transition">
-                Registrasi UMKM
-              </Link>
+              {isLoadingUmkm ? (
+                <div className="bg-gray-400 text-white px-6 py-2 rounded-md font-semibold cursor-not-allowed">
+                  Loading...
+                </div>
+              ) : hasUmkm ? (
+                <Link to="/admin/edit-umkm" className="bg-purple-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-purple-700 transition">
+                  Update UMKM
+                </Link>
+              ) : (
+                <Link to="/admin/registrasi-umkm" className="bg-purple-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-purple-700 transition">
+                  Registrasi UMKM
+                </Link>
+              )}
               <Link to="/admin/petugas" className="bg-purple-600 text-white px-6 py-2 rounded-md font-semibold hover:bg-purple-700 transition">
                 Data Petugas
               </Link>

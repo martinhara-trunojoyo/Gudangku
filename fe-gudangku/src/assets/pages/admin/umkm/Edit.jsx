@@ -1,29 +1,125 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { updateUmkm, getMyUmkm } from "../../../_service/umkm";
 
 export default function EditUMKM() {
-     const navigate = useNavigate();
+    const navigate = useNavigate();
+    const { id } = useParams();
     const [formData, setFormData] = useState({
         namaUmkm: "",
         namaPemilik: "",
         alamat: "",
         kontak: ""
     });
+    const [originalData, setOriginalData] = useState({});
+    const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingData, setIsLoadingData] = useState(true);
+    const [error, setError] = useState("");
+
+    // Load existing UMKM data when component mounts
+    useEffect(() => {
+        const loadUmkmData = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    setError("Authentication required. Please login again.");
+                    navigate('/login');
+                    return;
+                }
+
+                // Fetch current UMKM data from API
+                const response = await getMyUmkm(token);
+                console.log("Loaded UMKM data:", response);
+                
+                if (response && response.data) {
+                    const umkmData = {
+                        namaUmkm: response.data.nama_umkm || "",
+                        namaPemilik: response.data.pemilik || "",
+                        alamat: response.data.alamat || "",
+                        kontak: response.data.kontak || ""
+                    };
+                    setFormData(umkmData);
+                    setOriginalData(umkmData);
+                } else {
+                    setError("No UMKM data found for your account.");
+                }
+            } catch (error) {
+                console.error("Error loading UMKM data:", error);
+                setError("Failed to load UMKM data. Please try again.");
+            } finally {
+                setIsLoadingData(false);
+            }
+        };
+
+        loadUmkmData();
+    }, [id, navigate]);
 
     const handleChange = (e) => {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value
         });
+        // Clear error when user types
+        if (error) setError("");
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Handle form submission here
-        console.log("Form submitted:", formData);
-        // Redirect to admin dashboard after submission
+        setIsLoading(true);
+        setError("");
+
+        try {
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError("Authentication required. Please login again.");
+                navigate('/login');
+                return;
+            }
+
+            // Prepare data for API - Laravel expects all required fields
+            const updateData = {
+                nama_umkm: formData.namaUmkm,
+                pemilik: formData.namaPemilik,
+                alamat: formData.alamat,
+                kontak: formData.kontak
+            };
+
+            const response = await updateUmkm(updateData, token);
+            console.log("UMKM updated successfully:", response);
+            
+            // Update localStorage with new data
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            if (userData && userData.umkm) {
+                userData.umkm = { ...userData.umkm, ...updateData };
+                localStorage.setItem('user', JSON.stringify(userData));
+            }
+            
+            // Show success message and redirect
+            alert("UMKM data updated successfully!");
+            navigate("/admin");
+        } catch (error) {
+            setError("Failed to update UMKM. Please try again.");
+            console.error("Update UMKM error:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCancel = () => {
         navigate("/admin");
     };
+
+    if (isLoadingData) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-violet-600"></div>
+                    <p className="mt-4 text-gray-600">Loading UMKM data...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen relative overflow-hidden pt-20 bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50">
@@ -51,6 +147,37 @@ export default function EditUMKM() {
                             <h1 className="text-3xl font-bold text-violet-600 mb-8">
                                 Perbarui Informasi UMKM
                             </h1>
+
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                                    {error}
+                                </div>
+                            )}
+
+                            {/* Current Data Display */}
+                            {/* {originalData.namaUmkm && !isLoadingData && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                    <h3 className="font-semibold text-blue-800 mb-3">Data UMKM Saat Ini:</h3>
+                                    <div className="text-sm text-blue-700 space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <span className="font-medium">Nama UMKM:</span>
+                                            <span className="text-right">{originalData.namaUmkm}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <span className="font-medium">Pemilik:</span>
+                                            <span className="text-right">{originalData.namaPemilik}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <span className="font-medium">Alamat:</span>
+                                            <span className="text-right break-words">{originalData.alamat}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <span className="font-medium">Kontak:</span>
+                                            <span className="text-right">{originalData.kontak}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )} */}
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Nama UMKM */}
@@ -66,6 +193,7 @@ export default function EditUMKM() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama UMKM"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -82,6 +210,7 @@ export default function EditUMKM() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama pemilik"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -98,6 +227,7 @@ export default function EditUMKM() {
                                         placeholder="Masukkan alamat lengkap"
                                         rows="3"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -114,6 +244,7 @@ export default function EditUMKM() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                                         placeholder="Masukkan nomor telepon"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -121,14 +252,16 @@ export default function EditUMKM() {
                                 <div className="pt-6 flex gap-3">
                                     <button
                                         type="submit"
-                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
+                                        disabled={isLoading}
+                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                     >
-                                        Simpan Perubahan
+                                        {isLoading ? "Menyimpan..." : "Simpan Perubahan"}
                                     </button>
                                     <button
                                         type="button"
-                                        
-                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300"
+                                        onClick={handleCancel}
+                                        disabled={isLoading}
+                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 disabled:opacity-50"
                                     >
                                         Batal
                                     </button>
