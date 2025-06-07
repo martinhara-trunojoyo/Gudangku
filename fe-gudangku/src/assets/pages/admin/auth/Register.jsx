@@ -1,9 +1,55 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { register } from "../../../_service/auth";
 
 export default function Register() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [formData, setFormData] = useState({
+        name: "",
+        username: "",
+        email: "",
+        password: "",
+        confirmPassword: ""
+    });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+    const navigate = useNavigate();
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        setError("");
+
+        // Validate password confirmation
+        if (formData.password !== formData.confirmPassword) {
+            setError("Passwords do not match");
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const { name, username, email, password } = formData;
+            const response = await register({ name, username, email, password });
+            console.log("Registration successful:", response);
+            
+            // Navigate to login page after successful registration
+            navigate('/login');
+        } catch (error) {
+            setError("Registration failed. Please try again.");
+            console.error("Registration error:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -26,14 +72,24 @@ export default function Register() {
               </div>
             </div>
             <h2 className="text-3xl font-bold text-indigo-600 mb-8">Registrasi</h2>
+
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
   
-            <form className="space-y-5">
+            <form className="space-y-5" onSubmit={handleSubmit}>
               {/* Nama */}
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">Nama</label>
                 <input
                   type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
                   placeholder="Nama lengkap"
+                  required
                   className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
@@ -44,7 +100,11 @@ export default function Register() {
                   <label className="block text-sm font-medium text-gray-700">Username</label>
                   <input
                     type="text"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleInputChange}
                     placeholder="admin"
+                    required
                     className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
@@ -52,7 +112,11 @@ export default function Register() {
                   <label className="block text-sm font-medium text-gray-700">Email</label>
                   <input
                     type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
                     placeholder="admin@gmail.com"
+                    required
                     className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
@@ -64,7 +128,11 @@ export default function Register() {
                 <div className="relative">
                   <input
                     type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
                     placeholder="••••••••••••••••"
+                    required
                     className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <button 
@@ -92,7 +160,11 @@ export default function Register() {
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
                     placeholder="••••••••••••••••"
+                    required
                     className="w-full border border-gray-300 px-4 py-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <button 
@@ -117,9 +189,10 @@ export default function Register() {
               {/* Tombol */}
               <button
                 type="submit"
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition mt-4"
+                disabled={isLoading}
+                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create account
+                {isLoading ? "Creating account..." : "Create account"}
               </button>
   
               {/* Link Login */}

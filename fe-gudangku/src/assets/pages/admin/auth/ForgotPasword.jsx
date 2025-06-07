@@ -1,17 +1,29 @@
 import { useState } from "react";
 import { FaEnvelope, FaArrowLeft } from "react-icons/fa";
 import { Link } from "react-router-dom";
+import { forgotPassword } from "../../../_service/auth";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Here you would typically send a reset password request to your server
-    console.log("Password reset requested for:", email);
-    // Show success message
-    setIsSubmitted(true);
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await forgotPassword(email);
+      console.log("Password reset requested successfully:", response);
+      setIsSubmitted(true);
+    } catch (error) {
+      setError("Failed to send reset email. Please try again.");
+      console.error("Forgot password error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -25,6 +37,12 @@ export default function ForgotPassword() {
                 Enter the email associated with your account and we'll send you a link to reset your password.
               </p>
             </div>
+
+            {error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                {error}
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Email */}
@@ -46,9 +64,10 @@ export default function ForgotPassword() {
               {/* Tombol */}
               <button
                 type="submit"
-                className="w-full bg-[#6556e8] text-white py-3 rounded-md font-semibold hover:bg-[#5849d6] transition"
+                disabled={isLoading}
+                className="w-full bg-[#6556e8] text-white py-3 rounded-md font-semibold hover:bg-[#5849d6] transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Reset Password
+                {isLoading ? "Sending..." : "Reset Password"}
               </button>
 
               <div className="text-center mt-4">
