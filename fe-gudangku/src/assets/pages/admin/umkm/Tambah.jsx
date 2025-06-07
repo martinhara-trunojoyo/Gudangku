@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { createUmkm } from "../../../_service/umkm";
 
 export default function TambahUMKM() {
     const navigate = useNavigate();
@@ -9,20 +10,51 @@ export default function TambahUMKM() {
         alamat: "",
         kontak: ""
     });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
 
     const handleChange = (e) => {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value
         });
+        // Clear error when user types
+        if (error) setError("");
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Handle form submission here
-        console.log("Form submitted:", formData);
-        // Redirect to admin dashboard after submission
-        navigate("/admin");
+        setIsLoading(true);
+        setError("");
+
+        try {
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError("Authentication required. Please login again.");
+                navigate('/login');
+                return;
+            }
+
+            // Prepare data for API
+            const umkmData = {
+                nama_umkm: formData.namaUmkm,
+                pemilik: formData.namaPemilik,
+                alamat: formData.alamat,
+                kontak: formData.kontak
+            };
+
+            const response = await createUmkm(umkmData, token);
+            console.log("UMKM created successfully:", response);
+            
+            // Redirect to admin dashboard after successful submission
+            navigate("/admin");
+        } catch (error) {
+            setError("Failed to create UMKM. Please try again.");
+            console.error("Create UMKM error:", error);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -55,6 +87,12 @@ export default function TambahUMKM() {
                             <h1 className="text-3xl font-bold text-violet-600 mb-8">
                                 Pendaftaran UMKM
                             </h1>
+
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                                    {error}
+                                </div>
+                            )}
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Nama UMKM */}
@@ -70,6 +108,7 @@ export default function TambahUMKM() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama UMKM"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -86,6 +125,7 @@ export default function TambahUMKM() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama pemilik"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -102,6 +142,7 @@ export default function TambahUMKM() {
                                         placeholder="Masukkan alamat lengkap"
                                         rows="3"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -118,15 +159,17 @@ export default function TambahUMKM() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
                                         placeholder="Masukkan nomor telepon"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
                                 {/* Submit Button */}
                                 <button
                                     type="submit"
-                                    className="w-full bg-violet-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-violet-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
+                                    disabled={isLoading}
+                                    className="w-full bg-violet-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-violet-700 transition duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                 >
-                                    Submit
+                                    {isLoading ? "Submitting..." : "Submit"}
                                 </button>
                             </form>
                         </div>
