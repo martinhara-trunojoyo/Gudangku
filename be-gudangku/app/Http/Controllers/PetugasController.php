@@ -160,19 +160,25 @@ class PetugasController extends Controller
         $check = $this->checkAdminWithUmkm();
         if ($check) return $check;
 
-        // Validate that at least one field is provided
-        if (empty($request->all())) {
+        // 1. Mencari data
+        $petugas = User::where('role', 'petugas')
+                      ->where('umkm_id', Auth::user()->umkm_id)
+                      ->where('id', $id)
+                      ->first();
+
+        if (!$petugas) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'No data provided for update'
-            ], 422);
+                'message' => 'Petugas not found or not authorized to update'
+            ], 404);
         }
 
+        // 2. Validator
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255',
-            'username' => 'sometimes|required|string|max:255|unique:users,username,' . $id,
-            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
-            'password' => 'sometimes|required|string|min:6'
+            'name' => 'required|string|max:255',
+            'username' => 'required|string|max:255|unique:users,username,' . $id,
+            'email' => 'required|string|email|max:255|unique:users,email,' . $id,
+            'password' => 'required|string|min:6'
         ]);
 
         if ($validator->fails()) {
@@ -183,57 +189,25 @@ class PetugasController extends Controller
             ], 422);
         }
 
-        try {
-            $petugas = User::where('role', 'petugas')
-                          ->where('umkm_id', Auth::user()->umkm_id)
-                          ->where('id', $id)
-                          ->first();
+        // 3. Siapkan data yang ingin di update
+        $data = [
+            'name' => $request->name,
+            'username' => $request->username,
+            'email' => $request->email,
+            'password' => Hash::make($request->password)
+        ];
 
-            if (!$petugas) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Petugas not found or not authorized to update'
-                ], 404);
-            }
+        // 4. Update data baru ke database
+        $petugas->update($data);
 
-            // Prepare update data
-            $updateData = [];
-            if ($request->has('name') && !empty($request->name)) {
-                $updateData['name'] = $request->name;
-            }
-            if ($request->has('username') && !empty($request->username)) {
-                $updateData['username'] = $request->username;
-            }
-            if ($request->has('email') && !empty($request->email)) {
-                $updateData['email'] = $request->email;
-            }
-            if ($request->has('password') && !empty($request->password)) {
-                $updateData['password'] = Hash::make($request->password);
-            }
+        // Remove password from response
+        $petugas = $petugas->makeHidden(['password']);
 
-            if (empty($updateData)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No valid data provided for update'
-                ], 422);
-            }
-
-            $petugas->update($updateData);
-            $petugas->refresh();
-            $petugas = $petugas->makeHidden(['password']);
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Petugas updated successfully',
-                'data' => $petugas
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to update petugas',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Petugas updated successfully',
+            'data' => $petugas
+        ], 200);
     }
 
     /**

@@ -1,27 +1,112 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { createPetugas } from "../../../_service/petugas";
+import Swal from 'sweetalert2';
 
 export default function PetugasTambah() {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        nama: "",
+        name: "",
         username: "",
         email: "",
-        password: ""
+        password: "",
+        password_confirmation: ""
     });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    // Check authentication on component mount
+    useEffect(() => {
+        const checkAuth = () => {
+            const token = localStorage.getItem('token');
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            if (!token || !userData || userData.role !== 'admin') {
+                navigate('/login');
+                return;
+            }
+        };
+
+        checkAuth();
+    }, [navigate]);
 
     const handleChange = (e) => {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value
         });
+        // Clear error when user types
+        if (error) setError("");
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Handle form submission here
-        console.log("Form submitted:", formData);
-        // Navigate back to petugas list after submission
+        setIsLoading(true);
+        setError("");
+
+        // Validate passwords match
+        if (formData.password !== formData.password_confirmation) {
+            setError("Password confirmation does not match");
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError("Authentication required. Please login again.");
+                navigate('/login');
+                return;
+            }
+
+            // Prepare data for API
+            const petugasData = {
+                name: formData.name,
+                username: formData.username,
+                email: formData.email,
+                password: formData.password,
+                password_confirmation: formData.password_confirmation
+            };
+
+            const response = await createPetugas(petugasData);
+            console.log("Petugas created successfully:", response);
+            
+            // Show success notification with SweetAlert2
+            await Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'Petugas berhasil ditambahkan.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#7C3AED'
+            });
+            
+            // Navigate back to petugas list after successful submission
+            navigate("/admin/petugas");
+        } catch (error) {
+            console.error("Create petugas error:", error);
+            
+            // Handle authentication errors
+            if (error.message === "Unauthenticated." || error.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                navigate('/login');
+                return;
+            }
+            
+            // Handle validation errors
+            if (error.errors) {
+                const errorMessages = Object.values(error.errors).flat().join(', ');
+                setError(errorMessages);
+            } else {
+                setError("Failed to create petugas. Please try again.");
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCancel = () => {
         navigate("/admin/petugas");
     };
 
@@ -85,21 +170,45 @@ export default function PetugasTambah() {
                             <h2 className="text-3xl font-bold text-purple-600 mb-8 text-center">
                                 Tambah Petugas
                             </h2>
+
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                                    {error}
+                                </div>
+                            )}
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
-                                {/* Nama */}
+                                {/* Name */}
+                                <div>
+                                    <label className="block text-gray-600 text-sm mb-2">
+                                        Nama Lengkap
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                        className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                                        placeholder="Masukkan nama lengkap"
+                                        required
+                                        disabled={isLoading}
+                                    />
+                                </div>
+
+                                {/* Username */}
                                 <div>
                                     <label className="block text-gray-600 text-sm mb-2">
                                         Username
                                     </label>
                                     <input
                                         type="text"
-                                        name="nama"
-                                        value={formData.nama}
+                                        name="username"
+                                        value={formData.username}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                                        placeholder="Masukkan nama lengkap"
+                                        placeholder="Masukkan username"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
                             
@@ -116,6 +225,7 @@ export default function PetugasTambah() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         placeholder="Masukkan email"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -130,22 +240,28 @@ export default function PetugasTambah() {
                                         value={formData.password}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                                        placeholder="Masukkan password"
+                                        placeholder="Masukkan password (min. 6 karakter)"
                                         required
+                                        minLength="6"
+                                        disabled={isLoading}
                                     />
                                 </div>
+
+                                {/* Password Confirmation */}
                                 <div>
                                     <label className="block text-gray-600 text-sm mb-2">
-                                        Password (Confirm)
+                                        Konfirmasi Password
                                     </label>
                                     <input
                                         type="password"
-                                        name="password"
-                                        value={formData.password}
+                                        name="password_confirmation"
+                                        value={formData.password_confirmation}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
-                                        placeholder="Masukkan password"
+                                        placeholder="Ulangi password"
                                         required
+                                        minLength="6"
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -153,14 +269,16 @@ export default function PetugasTambah() {
                                 <div className="pt-6 flex gap-3">
                                     <button
                                         type="submit"
-                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
+                                        disabled={isLoading}
+                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                     >
-                                        Tambah
+                                        {isLoading ? "Menyimpan..." : "Tambah Petugas"}
                                     </button>
                                     <button
                                         type="button"
-                                        
-                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300"
+                                        onClick={handleCancel}
+                                        disabled={isLoading}
+                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 disabled:opacity-50"
                                     >
                                         Batal
                                     </button>
@@ -172,4 +290,4 @@ export default function PetugasTambah() {
             </div>
         </div>
     );
-} 
+}
