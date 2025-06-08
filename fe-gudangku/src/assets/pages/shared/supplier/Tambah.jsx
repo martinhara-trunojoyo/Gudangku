@@ -1,25 +1,113 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { FaArrowLeft } from "react-icons/fa";
+import { createSupplier } from "../../../_service/supplier";
+import Swal from 'sweetalert2';
 
 export default function SupplierTambah() {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        nama: "",
+        name: "",
         alamat: "",
         kontak: ""
     });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    // Check authentication on component mount
+    useEffect(() => {
+        const checkAuth = () => {
+            const token = localStorage.getItem('token');
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            if (!token || !userData || !userData.role) {
+                navigate('/login');
+                return;
+            }
+        };
+
+        checkAuth();
+    }, [navigate]);
 
     const handleChange = (e) => {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value
         });
+        // Clear error when user types
+        if (error) setError("");
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Handle form submission here
-        console.log("Form submitted:", formData);
+        setIsLoading(true);
+        setError("");
+
+        try {
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError("Authentication required. Please login again.");
+                navigate('/login');
+                return;
+            }
+
+            // Prepare data for API
+            const supplierData = {
+                name: formData.name,
+                alamat: formData.alamat,
+                kontak: formData.kontak
+            };
+
+            const response = await createSupplier(supplierData);
+            console.log("Supplier created successfully:", response);
+            
+            // Show success notification with SweetAlert2
+            await Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'Supplier berhasil ditambahkan.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#7C3AED'
+            });
+            
+            // Navigate back to supplier list
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            if (userData.role === 'admin') {
+                navigate("/admin/supplier");
+            } else {
+                navigate("/petugas/supplier");
+            }
+        } catch (error) {
+            console.error("Create supplier error:", error);
+            
+            // Handle authentication errors
+            if (error.message === "Unauthenticated." || error.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                navigate('/login');
+                return;
+            }
+            
+            // Handle validation errors
+            if (error.errors) {
+                const errorMessages = Object.values(error.errors).flat().join(', ');
+                setError(errorMessages);
+            } else {
+                setError("Failed to create supplier. Please try again.");
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCancel = () => {
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        if (userData.role === 'admin') {
+            navigate("/admin/supplier");
+        } else {
+            navigate("/petugas/supplier");
+        }
     };
 
     return (
@@ -106,6 +194,12 @@ export default function SupplierTambah() {
                             <h2 className="text-3xl font-bold text-purple-600 mb-8 text-center">
                                 Form Supplier
                             </h2>
+
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                                    {error}
+                                </div>
+                            )}
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Nama Supplier */}
@@ -115,12 +209,13 @@ export default function SupplierTambah() {
                                     </label>
                                     <input
                                         type="text"
-                                        name="nama"
-                                        value={formData.nama}
+                                        name="name"
+                                        value={formData.name}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama supplier"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -137,6 +232,7 @@ export default function SupplierTambah() {
                                         placeholder="Masukkan alamat lengkap"
                                         rows="3"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -153,6 +249,7 @@ export default function SupplierTambah() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         placeholder="Masukkan nomor telepon"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -160,16 +257,19 @@ export default function SupplierTambah() {
                                 <div className="pt-6 flex gap-3">
                                     <button
                                         type="submit"
-                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
+                                        disabled={isLoading}
+                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                     >
-                                        Submit
+                                        {isLoading ? "Menyimpan..." : "Tambah Supplier"}
                                     </button>
-                                    <Link
-                                        to="#"
-                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 flex items-center justify-center"
+                                    <button
+                                        type="button"
+                                        onClick={handleCancel}
+                                        disabled={isLoading}
+                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 disabled:opacity-50"
                                     >
                                         Batal
-                                    </Link>
+                                    </button>
                                 </div>
                             </form>
                         </div>
