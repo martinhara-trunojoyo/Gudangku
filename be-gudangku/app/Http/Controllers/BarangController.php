@@ -179,20 +179,25 @@ class BarangController extends Controller
         $check = $this->checkUmkmAccess();
         if ($check) return $check;
 
-        // Validate that at least one field is provided
-        if (empty($request->all())) {
+        // 1. Mencari data
+        $product = Barang::where('barang_id', $id)
+                       ->where('umkm_id', Auth::user()->umkm_id)
+                       ->first();
+
+        if (!$product) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'No data provided for update'
-            ], 422);
+                'message' => 'Product not found or not authorized to update'
+            ], 404);
         }
 
+        // 2. Validator
         $validator = Validator::make($request->all(), [
-            'nama_barang' => 'sometimes|required|string|max:100',
-            'kategori_id' => 'sometimes|required|exists:kategori,kategori_id',
-            'satuan' => 'sometimes|required|string|max:45',
-            'stok' => 'sometimes|required|integer|min:0',
-            'batas_minimum' => 'sometimes|nullable|integer|min:0'
+            'nama_barang' => 'required|string|max:100',
+            'kategori_id' => 'required|exists:kategori,kategori_id',
+            'satuan' => 'required|string|max:45',
+            'stok' => 'required|integer|min:0',
+            'batas_minimum' => 'nullable|integer|min:0'
         ]);
 
         if ($validator->fails()) {
@@ -203,112 +208,71 @@ class BarangController extends Controller
             ], 422);
         }
 
-        try {
-            $product = Barang::where('barang_id', $id)
-                           ->where('umkm_id', Auth::user()->umkm_id)
-                           ->first();
+        // Verify that the kategori belongs to the same UMKM
+        $kategori = Kategori::where('kategori_id', $request->kategori_id)
+                          ->where('umkm_id', Auth::user()->umkm_id)
+                          ->first();
 
-            if (!$product) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Product not found or not authorized to update'
-                ], 404);
-            }
-
-            // If kategori_id is being updated, verify it belongs to the same UMKM
-            if ($request->has('kategori_id')) {
-                $kategori = Kategori::where('kategori_id', $request->kategori_id)
-                                  ->where('umkm_id', Auth::user()->umkm_id)
-                                  ->first();
-
-                if (!$kategori) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Category not found or does not belong to your UMKM'
-                    ], 404);
-                }
-            }
-
-            // Check if new product name already exists (except current product)
-            if ($request->has('nama_barang')) {
-                $existingProduct = Barang::where('umkm_id', Auth::user()->umkm_id)
-                                        ->where('nama_barang', $request->nama_barang)
-                                        ->where('barang_id', '!=', $id)
-                                        ->first();
-
-                if ($existingProduct) {
-                    return response()->json([
-                        'status' => 'error',
-                        'message' => 'Product name already exists in your UMKM'
-                    ], 409);
-                }
-            }
-
-            // Prepare update data
-            $updateData = [];
-            if ($request->has('nama_barang') && !empty($request->nama_barang)) {
-                $updateData['nama_barang'] = $request->nama_barang;
-            }
-            if ($request->has('kategori_id')) {
-                $updateData['kategori_id'] = $request->kategori_id;
-            }
-            if ($request->has('satuan') && !empty($request->satuan)) {
-                $updateData['satuan'] = $request->satuan;
-            }
-            if ($request->has('stok')) {
-                $updateData['stok'] = $request->stok;
-            }
-            if ($request->has('batas_minimum')) {
-                $updateData['batas_minimum'] = $request->batas_minimum ?? 0;
-            }
-
-            if (empty($updateData)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No valid data provided for update'
-                ], 422);
-            }
-
-            // Store old stock for notification
-            $oldStock = $product->stok;
-
-            $product->update($updateData);
-            $product->refresh();
-            $product->load('kategori');
-
-            // Check for low stock notifications if stock or batas_minimum was updated
-            if (isset($updateData['stok']) || isset($updateData['batas_minimum'])) {
-                NotifikasiStokController::checkLowStock($product->barang_id);
-
-                // Send email notification if stock was changed
-                if (isset($updateData['stok']) && $updateData['stok'] != $oldStock) {
-                    $stockDifference = $updateData['stok'] - $oldStock;
-                    $type = $stockDifference > 0 ? 'increase' : 'decrease';
-                    $quantity = abs($stockDifference);
-                    $reason = "Penyesuaian stok manual oleh " . Auth::user()->name;
-
-                    StockNotificationService::sendStockChangeNotification(
-                        $product->barang_id,
-                        $type,
-                        $quantity,
-                        $reason,
-                        $oldStock
-                    );
-                }
-            }
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Product updated successfully',
-                'data' => $product
-            ]);
-        } catch (\Exception $e) {
+        if (!$kategori) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to update product',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Category not found or does not belong to your UMKM'
+            ], 404);
         }
+
+        // Check if new product name already exists (except current product)
+        $existingProduct = Barang::where('umkm_id', Auth::user()->umkm_id)
+                                ->where('nama_barang', $request->nama_barang)
+                                ->where('barang_id', '!=', $id)
+                                ->first();
+
+        if ($existingProduct) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Product name already exists in your UMKM'
+            ], 409);
+        }
+
+        // Store old stock for notification
+        $oldStock = $product->stok;
+
+        // 3. Siapkan data yang ingin di update
+        $data = [
+            'nama_barang' => $request->nama_barang,
+            'kategori_id' => $request->kategori_id,
+            'satuan' => $request->satuan,
+            'stok' => $request->stok,
+            'batas_minimum' => $request->batas_minimum ?? 0
+        ];
+
+        // 4. Update data baru ke database
+        $product->update($data);
+        $product->load('kategori');
+
+        // Check for low stock notifications
+        NotifikasiStokController::checkLowStock($product->barang_id);
+
+        // Send email notification if stock was changed
+        if ($request->stok != $oldStock) {
+            $stockDifference = $request->stok - $oldStock;
+            $type = $stockDifference > 0 ? 'increase' : 'decrease';
+            $quantity = abs($stockDifference);
+            $reason = "Penyesuaian stok manual oleh " . Auth::user()->name;
+
+            StockNotificationService::sendStockChangeNotification(
+                $product->barang_id,
+                $type,
+                $quantity,
+                $reason,
+                $oldStock
+            );
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Product updated successfully',
+            'data' => $product
+        ], 200);
     }
 
     /**

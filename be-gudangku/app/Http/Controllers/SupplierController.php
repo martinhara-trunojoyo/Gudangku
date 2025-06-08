@@ -144,18 +144,23 @@ class SupplierController extends Controller
         $check = $this->checkUmkmAccess();
         if ($check) return $check;
 
-        // Validate that at least one field is provided
-        if (empty($request->all())) {
+        // 1. Mencari data
+        $supplier = Supplier::where('supplier_id', $id)
+                          ->where('umkm_id', Auth::user()->umkm_id)
+                          ->first();
+
+        if (!$supplier) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'No data provided for update'
-            ], 422);
+                'message' => 'Supplier not found or not authorized to update'
+            ], 404);
         }
 
+        // 2. Validator
         $validator = Validator::make($request->all(), [
-            'nama_supplier' => 'sometimes|required|string|max:100',
-            'alamat_supplier' => 'sometimes|required|string',
-            'kontak_supplier' => 'sometimes|required|string|max:50'
+            'nama_supplier' => 'required|string|max:100',
+            'alamat_supplier' => 'required|string',
+            'kontak_supplier' => 'required|string|max:50'
         ]);
 
         if ($validator->fails()) {
@@ -166,52 +171,21 @@ class SupplierController extends Controller
             ], 422);
         }
 
-        try {
-            $supplier = Supplier::where('supplier_id', $id)
-                              ->where('umkm_id', Auth::user()->umkm_id)
-                              ->first();
+        // 3. Siapkan data yang ingin di update
+        $data = [
+            'nama_supplier' => $request->nama_supplier,
+            'alamat_supplier' => $request->alamat_supplier,
+            'kontak_supplier' => $request->kontak_supplier
+        ];
 
-            if (!$supplier) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Supplier not found or not authorized to update'
-                ], 404);
-            }
+        // 4. Update data baru ke database
+        $supplier->update($data);
 
-            // Prepare update data
-            $updateData = [];
-            if ($request->has('nama_supplier') && !empty($request->nama_supplier)) {
-                $updateData['nama_supplier'] = $request->nama_supplier;
-            }
-            if ($request->has('alamat_supplier') && !empty($request->alamat_supplier)) {
-                $updateData['alamat_supplier'] = $request->alamat_supplier;
-            }
-            if ($request->has('kontak_supplier') && !empty($request->kontak_supplier)) {
-                $updateData['kontak_supplier'] = $request->kontak_supplier;
-            }
-
-            if (empty($updateData)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No valid data provided for update'
-                ], 422);
-            }
-
-            $supplier->update($updateData);
-            $supplier->refresh();
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Supplier updated successfully',
-                'data' => $supplier
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Failed to update supplier',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Supplier updated successfully',
+            'data' => $supplier
+        ], 200);
     }
 
     /**
