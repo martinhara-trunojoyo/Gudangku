@@ -53,7 +53,7 @@ export const updateKategori = async (id, kategoriData) => {
         const token = localStorage.getItem('token');
         const response = await API.put(`/categories/${id}`, {
             nama_kategori: kategoriData.nama_kategori,
-            deskripsi_kategori: kategoriData.deskripsi,
+            deskripsi: kategoriData.deskripsi,
         }, {
           headers: {
             Authorization: `Bearer ${token}`,

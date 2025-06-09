@@ -15,29 +15,36 @@ export default function KategoriEdit() {
     const [isLoadingData, setIsLoadingData] = useState(true);
     const [error, setError] = useState("");
 
+    // Load existing kategori data when component mounts
     useEffect(() => {
         const loadKategoriData = async () => {
             try {
                 const token = localStorage.getItem("token");
                 if (!token) {
-                    setError("Authentication required.");
+                    setError("Authentication required. Please login again.");
                     navigate("/login");
                     return;
                 }
 
+                // Fetch current kategori data from API
                 const response = await showKategori(id);
+                console.log("Loaded kategori data:", response);
+                
                 if (response) {
-                    setFormData({
+                    const kategoriData = {
                         nama_kategori: response.nama_kategori || "",
                         deskripsi: response.deskripsi || "",
-                    });
-                    setOriginalData(response);
+                    };
+                    setFormData(kategoriData);
+                    setOriginalData(kategoriData);
                 } else {
-                    setError("Data kategori tidak ditemukan.");
+                    setError("No kategori data found.");
                 }
             } catch (error) {
-                console.error("Error fetching kategori:", error);
-                setError("Gagal memuat data kategori.");
+                console.error("Error loading kategori data:", error);
+                setError("Failed to load kategori data. Please try again.");
+                
+                // Handle authentication errors
                 if (error.message === "Unauthenticated." || error.status === 401) {
                     localStorage.removeItem("token");
                     localStorage.removeItem("user");
@@ -48,7 +55,9 @@ export default function KategoriEdit() {
             }
         };
 
-        if (id) loadKategoriData();
+        if (id) {
+            loadKategoriData();
+        }
     }, [id, navigate]);
 
     const handleChange = (e) => {
@@ -65,22 +74,33 @@ export default function KategoriEdit() {
         setError("");
 
         try {
+            // Get token from localStorage
             const token = localStorage.getItem("token");
             if (!token) {
-                setError("Authentication required.");
+                setError("Authentication required. Please login again.");
                 navigate("/login");
                 return;
             }
 
-            await updateKategori(id, formData);
+            // Prepare data for API
+            const updateData = {
+                nama_kategori: formData.nama_kategori,
+                deskripsi: formData.deskripsi,
+            };
 
+            const response = await updateKategori(id, updateData);
+            console.log("Kategori updated successfully:", response);
+
+            // Show success notification with SweetAlert2
             await Swal.fire({
                 icon: "success",
                 title: "Berhasil!",
                 text: "Data kategori berhasil diperbarui.",
+                confirmButtonText: 'OK',
                 confirmButtonColor: "#7C3AED",
             });
 
+            // Navigate back to kategori list
             const userData = JSON.parse(localStorage.getItem("user") || "{}");
             if (userData.role === "admin") {
                 navigate("/admin/kategori");
@@ -89,20 +109,33 @@ export default function KategoriEdit() {
             }
         } catch (error) {
             console.error("Update kategori error:", error);
+            
+            // Handle authentication errors
             if (error.message === "Unauthenticated." || error.status === 401) {
                 localStorage.removeItem("token");
                 localStorage.removeItem("user");
                 navigate("/login");
                 return;
             }
+            
+            // Handle validation errors
             if (error.errors) {
                 const errorMessages = Object.values(error.errors).flat().join(", ");
                 setError(errorMessages);
             } else {
-                setError("Gagal memperbarui kategori.");
+                setError("Failed to update kategori. Please try again.");
             }
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleCancel = () => {
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        if (userData.role === "admin") {
+            navigate("/admin/kategori");
+        } else {
+            navigate("/petugas/kategori");
         }
     };
 
@@ -180,19 +213,27 @@ export default function KategoriEdit() {
                                 Edit Kategori
                             </h2>
 
-                            {/* Tampilkan data kategori asli */}
-                            {originalData.nama_kategori && (
-                                <div className="mb-6 p-4 bg-blue-50 border border-blue-300 rounded">
-                                    <h3 className="font-semibold text-blue-700 mb-2">Data Kategori Saat Ini:</h3>
-                                    <p><strong>Nama Kategori:</strong> {originalData.nama_kategori}</p>
-                                    <p><strong>Deskripsi:</strong> {originalData.deskripsi}</p>
-                                </div>
-                            )}
-
                             {/* Error message */}
                             {error && (
                                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
                                     {error}
+                                </div>
+                            )}
+
+                            {/* Current Data Display */}
+                            {originalData.nama_kategori && !isLoadingData && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                    <h3 className="font-semibold text-blue-800 mb-3">Data Kategori Saat Ini:</h3>
+                                    <div className="text-sm text-blue-700 space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <span className="font-medium">Nama Kategori:</span>
+                                            <span className="text-right">{originalData.nama_kategori}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <span className="font-medium">Deskripsi:</span>
+                                            <span className="text-right break-words">{originalData.deskripsi}</span>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                             
@@ -210,6 +251,7 @@ export default function KategoriEdit() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama kategori"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -226,6 +268,7 @@ export default function KategoriEdit() {
                                         placeholder="Masukkan deskripsi kategori"
                                         rows="3"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -233,17 +276,19 @@ export default function KategoriEdit() {
                                 <div className="pt-6 flex gap-3">
                                     <button
                                         type="submit"
-                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
                                         disabled={isLoading}
+                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                     >
                                         {isLoading ? "Menyimpan..." : "Simpan Perubahan"}
                                     </button>
-                                    <Link
-                                        to="/kategori"
-                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 flex items-center justify-center"
+                                    <button
+                                        type="button"
+                                        onClick={handleCancel}
+                                        disabled={isLoading}
+                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 disabled:opacity-50"
                                     >
                                         Batal
-                                    </Link>
+                                    </button>
                                 </div>
                             </form>
                         </div>

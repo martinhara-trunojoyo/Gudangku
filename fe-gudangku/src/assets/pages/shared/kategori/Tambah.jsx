@@ -53,23 +53,23 @@ export default function KategoriTambah() {
 
             // Prepare data for API
             const kategoriData = {
-            nama_kategori: formData.nama_kategori,
-            deskripsi: formData.deskripsi,
+                nama_kategori: formData.nama_kategori,
+                deskripsi: formData.deskripsi,
             };
 
             const response = await createKategori(kategoriData);
-            console.log("Katagori created successfully:", response);
+            console.log("Kategori created successfully:", response);
             
             // Show success notification with SweetAlert2
             await Swal.fire({
                 icon: 'success',
                 title: 'Berhasil!',
-                text: 'Katagori berhasil ditambahkan.',
+                text: 'Kategori berhasil ditambahkan.',
                 confirmButtonText: 'OK',
                 confirmButtonColor: '#7C3AED'
             });
             
-            // Navigate back to supplier list
+            // Navigate back to kategori list
             const userData = JSON.parse(localStorage.getItem('user') || '{}');
             if (userData.role === 'admin') {
                 navigate("/admin/kategori");
@@ -177,6 +177,12 @@ export default function KategoriTambah() {
                             <h2 className="text-3xl font-bold text-purple-600 mb-8 text-center">
                                 Tambah Kategori
                             </h2>
+
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                                    {error}
+                                </div>
+                            )}
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Nama Kategori */}
@@ -192,6 +198,7 @@ export default function KategoriTambah() {
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama kategori"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -208,6 +215,7 @@ export default function KategoriTambah() {
                                         placeholder="Masukkan deskripsi kategori"
                                         rows="3"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
@@ -216,15 +224,15 @@ export default function KategoriTambah() {
                                     <button
                                         type="submit"
                                         disabled={isLoading}
-                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
+                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                     >
-                                        Tambah
+                                        {isLoading ? "Menyimpan..." : "Tambah Kategori"}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={handleCancel}
                                         disabled={isLoading}
-                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 flex items-center justify-center"
+                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 disabled:opacity-50"
                                     >
                                         Batal
                                     </button>
@@ -233,8 +241,6 @@ export default function KategoriTambah() {
                         </div>
                     </div>
                 </div>
-                
-                
             </div>
             
             {/* Grid Pattern Style */}

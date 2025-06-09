@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FaEdit, FaTrash, FaPlus, FaSearch } from "react-icons/fa";
 import { getKategori, deleteKategori } from "../../../_service/kategori";
 import Swal from "sweetalert2";
@@ -11,13 +11,13 @@ export default function KategoriIndex() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [userName, setUserName] = useState("User");
-
   const navigate = useNavigate();
-  const location = useLocation();
 
+  // Load user name and kategori data
   useEffect(() => {
     const checkAuthAndLoadData = async () => {
       try {
+        // Check authentication
         const token = localStorage.getItem("token");
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
 
@@ -26,43 +26,28 @@ export default function KategoriIndex() {
           return;
         }
 
-        if (userData.name) setUserName(userData.name);
-
-        // Kalau ada kategori yang diupdate lewat location.state, update state langsung tanpa load ulang API
-        if (location.state?.updatedKategori) {
-          setKategoriList((prev) => {
-            // Ganti data kategori yang diupdate
-            const updated = location.state.updatedKategori;
-            const exists = prev.find((k) => k.kategori_id === updated.kategori_id);
-            if (exists) {
-              return prev.map((k) =>
-                k.kategori_id === updated.kategori_id ? updated : k
-              );
-            } else {
-              // Kalau belum ada (misal baru ditambah), tambahkan ke list
-              return [updated, ...prev];
-            }
-          });
-          // Hapus state agar tidak dipakai lagi saat re-render
-          window.history.replaceState({}, document.title);
-          setIsLoading(false);
-        } else {
-          await loadKategoriData();
+        // Set user name
+        if (userData.name) {
+          setUserName(userData.name);
         }
-      } catch (err) {
-        console.error("Error checking auth:", err);
+
+        // Load kategori data
+        await loadKategoriData();
+      } catch (error) {
+        console.error("Error checking auth:", error);
         navigate("/login");
       }
     };
 
     checkAuthAndLoadData();
-  }, [navigate, location]);
+  }, [navigate]);
 
   const loadKategoriData = async () => {
     try {
       setIsLoading(true);
       setError("");
 
+      // Check if token exists
       const token = localStorage.getItem("token");
       if (!token) {
         navigate("/login");
@@ -71,14 +56,17 @@ export default function KategoriIndex() {
 
       const data = await getKategori();
       setKategoriList(data || []);
-    } catch (err) {
-      console.error("Error loading kategori data:", err);
-      if (err.message === "Unauthenticated." || err.status === 401) {
+    } catch (error) {
+      console.error("Error loading kategori data:", error);
+
+      // Handle authentication errors
+      if (error.message === "Unauthenticated." || error.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         navigate("/login");
         return;
       }
+
       setError("Failed to load kategori data. Please try again.");
     } finally {
       setIsLoading(false);
@@ -104,21 +92,27 @@ export default function KategoriIndex() {
     if (result.isConfirmed) {
       try {
         await deleteKategori(id);
+
         await Swal.fire({
           icon: "success",
           title: "Berhasil!",
           text: "Kategori berhasil dihapus.",
           confirmButtonColor: "#7C3AED",
         });
+
+        // Reload data after deletion
         await loadKategoriData();
-      } catch (err) {
-        console.error("Error deleting kategori:", err);
-        if (err.message === "Unauthenticated." || err.status === 401) {
+      } catch (error) {
+        console.error("Error deleting kategori:", error);
+
+        // Handle authentication errors
+        if (error.message === "Unauthenticated." || error.status === 401) {
           localStorage.removeItem("token");
           localStorage.removeItem("user");
           navigate("/login");
           return;
         }
+
         await Swal.fire({
           icon: "error",
           title: "Gagal!",
@@ -129,12 +123,14 @@ export default function KategoriIndex() {
     }
   };
 
+  // Filter kategori based on search term
   const filteredKategori = kategoriList.filter(
     (kategori) =>
       kategori.nama_kategori?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      kategori.deskripsi_kategori?.toLowerCase().includes(searchTerm.toLowerCase())
+      kategori.deskripsi?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Pagination logic
   const itemsPerPage = 10;
   const totalPages = Math.ceil(filteredKategori.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -154,13 +150,17 @@ export default function KategoriIndex() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-blue-100 pt-20 relative overflow-hidden">
+      {/* ...existing decorative elements... */}
+
       <div className="container mx-auto px-6 py-8 relative z-10">
+        {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-semibold text-gray-800 mb-2">
             Hello, {userName}! 👋
           </h1>
         </div>
 
+        {/* Kategori Section */}
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6">
           <h2 className="text-2xl font-bold text-center mb-8">KATEGORI</h2>
 
@@ -170,7 +170,9 @@ export default function KategoriIndex() {
             </div>
           )}
 
+          {/* Actions Bar */}
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+            {/* Add Button */}
             <Link
               to="tambah"
               className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition"
@@ -179,6 +181,7 @@ export default function KategoriIndex() {
               <span>Add Data Kategori</span>
             </Link>
 
+            {/* Search Bar */}
             <div className="relative w-full md:w-auto">
               <input
                 type="text"
@@ -191,8 +194,9 @@ export default function KategoriIndex() {
             </div>
           </div>
 
+          {/* Table */}
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="w-full">
               <thead>
                 <tr className="bg-[#4A5568] text-white">
                   <th className="py-3 px-4 text-left">No</th>
@@ -203,11 +207,11 @@ export default function KategoriIndex() {
               </thead>
               <tbody>
                 {currentKategori.length > 0 ? (
-                  currentKategori.map((kategori, idx) => (
+                  currentKategori.map((kategori, index) => (
                     <tr key={kategori.kategori_id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-4">{startIndex + idx + 1}</td>
+                      <td className="py-3 px-4">{startIndex + index + 1}</td>
                       <td className="py-3 px-4">{kategori.nama_kategori || "-"}</td>
-                      <td className="py-3 px-4 whitespace-pre-wrap">
+                      <td className="py-3 px-4 max-w-xs truncate" title={kategori.deskripsi}>
                         {kategori.deskripsi || "-"}
                       </td>
                       <td className="py-3 px-4">
@@ -243,6 +247,7 @@ export default function KategoriIndex() {
             </table>
           </div>
 
+          {/* Pagination */}
           {filteredKategori.length > 0 && (
             <div className="mt-6 flex items-center justify-between">
               <div className="text-sm text-gray-600">
@@ -282,21 +287,7 @@ export default function KategoriIndex() {
         </div>
       </div>
 
-      <style jsx>{`
-        .bg-grid-pattern {
-          background-image: linear-gradient(
-              to right,
-              rgba(107, 33, 168, 0.1) 1px,
-              transparent 1px
-            ),
-            linear-gradient(
-              to bottom,
-              rgba(107, 33, 168, 0.1) 1px,
-              transparent 1px
-            );
-          background-size: 20px 20px;
-        }
-      `}</style>
+      {/* ...existing styles... */}
     </div>
   );
 }
