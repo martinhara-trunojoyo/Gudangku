@@ -47,6 +47,7 @@ export default function SupplierIndex() {
             setIsLoading(true);
             setError("");
             
+            // Check if token exists
             const token = localStorage.getItem('token');
             if (!token) {
                 navigate('/login');
