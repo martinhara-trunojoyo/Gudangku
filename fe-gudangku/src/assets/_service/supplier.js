@@ -8,7 +8,6 @@ export const getSupplier = async () => {
         Authorization: `Bearer ${token}`,
       },
     });
-    // Return the data array from the response
     return data.data;
   } catch (error) {
     console.log("Get Supplier error:", error);
@@ -79,6 +78,6 @@ export const deleteSupplier = async (id) => {
         });
     } catch (error) {
         console.log("Delete Supplier error:", error);
-        throw error.response ? error.response.data : "An error occurred while deleting Supplier.";
+        throw error.response ? error.response.data : "An error occurred while deleting supplier.";
     }
 };
