@@ -1,26 +1,112 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { FaArrowLeft } from "react-icons/fa";
+import Swal from 'sweetalert2';
+import { createKategori } from "../../../_service/kategori";
 
 export default function KategoriTambah() {
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
-        nama: "",
-        deskripsi: ""
+        nama_kategori: "",
+        deskripsi: "",
     });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    // Check authentication on component mount
+    useEffect(() => {
+        const checkAuth = () => {
+            const token = localStorage.getItem('token');
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            
+            if (!token || !userData || !userData.role) {
+                navigate('/login');
+                return;
+            }
+        };
+
+        checkAuth();
+    }, [navigate]);
 
     const handleChange = (e) => {
         setFormData({
             ...formData,
             [e.target.name]: e.target.value
         });
+        // Clear error when user types
+        if (error) setError("");
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Handle form submission here
-        console.log("Form submitted:", formData);
+        setIsLoading(true);
+        setError("");
+
+        try {
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError("Authentication required. Please login again.");
+                navigate('/login');
+                return;
+            }
+
+            // Prepare data for API
+            const kategoriData = {
+            nama_kategori: formData.nama_kategori,
+            deskripsi: formData.deskripsi,
+            };
+
+            const response = await createKategori(kategoriData);
+            console.log("Katagori created successfully:", response);
+            
+            // Show success notification with SweetAlert2
+            await Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'Katagori berhasil ditambahkan.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#7C3AED'
+            });
+            
+            // Navigate back to supplier list
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            if (userData.role === 'admin') {
+                navigate("/admin/kategori");
+            } else {
+                navigate("/petugas/kategori");
+            }
+        } catch (error) {
+            console.error("Create kategori error:", error);
+            
+            // Handle authentication errors
+            if (error.message === "Unauthenticated." || error.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                navigate('/login');
+                return;
+            }
+            
+            // Handle validation errors
+            if (error.errors) {
+                const errorMessages = Object.values(error.errors).flat().join(', ');
+                setError(errorMessages);
+            } else {
+                setError("Failed to create category. Please try again.");
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
 
+    const handleCancel = () => {
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        if (userData.role === 'admin') {
+            navigate("/admin/kategori");
+        } else {
+            navigate("/petugas/kategori");
+        }
+    };
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-blue-100 pt-20 relative overflow-hidden">
             {/* Decorative Background Elements */}
@@ -100,8 +186,8 @@ export default function KategoriTambah() {
                                     </label>
                                     <input
                                         type="text"
-                                        name="nama"
-                                        value={formData.nama}
+                                        name="nama_kategori"
+                                        value={formData.nama_kategori}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama kategori"
@@ -129,16 +215,19 @@ export default function KategoriTambah() {
                                 <div className="pt-6 flex gap-3">
                                     <button
                                         type="submit"
+                                        disabled={isLoading}
                                         className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
                                     >
                                         Tambah
                                     </button>
-                                    <Link
-                                        to="#"
+                                    <button
+                                        type="button"
+                                        onClick={handleCancel}
+                                        disabled={isLoading}
                                         className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 flex items-center justify-center"
                                     >
                                         Batal
-                                    </Link>
+                                    </button>
                                 </div>
                             </form>
                         </div>

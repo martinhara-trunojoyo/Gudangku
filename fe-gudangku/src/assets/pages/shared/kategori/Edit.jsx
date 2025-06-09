@@ -1,25 +1,118 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { FaArrowLeft } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams, Link } from "react-router-dom";
+import { updateKategori, showKategori } from "../../../_service/kategori"; // pastikan path sesuai
+import Swal from "sweetalert2";
 
 export default function KategoriEdit() {
+    const navigate = useNavigate();
+    const { id } = useParams();
     const [formData, setFormData] = useState({
-        nama: "",
-        deskripsi: ""
+        nama_kategori: "",
+        deskripsi: "",
     });
+    const [originalData, setOriginalData] = useState({});
+    const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingData, setIsLoadingData] = useState(true);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        const loadKategoriData = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                if (!token) {
+                    setError("Authentication required.");
+                    navigate("/login");
+                    return;
+                }
+
+                const response = await showKategori(id);
+                if (response) {
+                    setFormData({
+                        nama_kategori: response.nama_kategori || "",
+                        deskripsi: response.deskripsi || "",
+                    });
+                    setOriginalData(response);
+                } else {
+                    setError("Data kategori tidak ditemukan.");
+                }
+            } catch (error) {
+                console.error("Error fetching kategori:", error);
+                setError("Gagal memuat data kategori.");
+                if (error.message === "Unauthenticated." || error.status === 401) {
+                    localStorage.removeItem("token");
+                    localStorage.removeItem("user");
+                    navigate("/login");
+                }
+            } finally {
+                setIsLoadingData(false);
+            }
+        };
+
+        if (id) loadKategoriData();
+    }, [id, navigate]);
 
     const handleChange = (e) => {
         setFormData({
             ...formData,
-            [e.target.name]: e.target.value
+            [e.target.name]: e.target.value,
         });
+        if (error) setError("");
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Handle form submission here
-        console.log("Form submitted:", formData);
+        setIsLoading(true);
+        setError("");
+
+        try {
+            const token = localStorage.getItem("token");
+            if (!token) {
+                setError("Authentication required.");
+                navigate("/login");
+                return;
+            }
+
+            await updateKategori(id, formData);
+
+            await Swal.fire({
+                icon: "success",
+                title: "Berhasil!",
+                text: "Data kategori berhasil diperbarui.",
+                confirmButtonColor: "#7C3AED",
+            });
+
+            const userData = JSON.parse(localStorage.getItem("user") || "{}");
+            if (userData.role === "admin") {
+                navigate("/admin/kategori");
+            } else {
+                navigate("/petugas/kategori");
+            }
+        } catch (error) {
+            console.error("Update kategori error:", error);
+            if (error.message === "Unauthenticated." || error.status === 401) {
+                localStorage.removeItem("token");
+                localStorage.removeItem("user");
+                navigate("/login");
+                return;
+            }
+            if (error.errors) {
+                const errorMessages = Object.values(error.errors).flat().join(", ");
+                setError(errorMessages);
+            } else {
+                setError("Gagal memperbarui kategori.");
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
+
+    if (isLoadingData) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <p>Loading data kategori...</p>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-blue-100 pt-20 relative overflow-hidden">
@@ -61,19 +154,14 @@ export default function KategoriEdit() {
                                 {/* Fallback illustration if image not found */}
                                 <div className="hidden">
                                     <svg className="w-full h-auto" viewBox="0 0 400 350" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        {/* Simple category illustration */}
                                         <rect x="100" y="100" width="200" height="150" rx="10" fill="rgba(255,255,255,0.3)" stroke="white" strokeWidth="2"/>
                                         <rect x="120" y="130" width="60" height="10" rx="2" fill="white"/>
                                         <rect x="120" y="150" width="160" height="10" rx="2" fill="white"/>
                                         <rect x="120" y="170" width="120" height="10" rx="2" fill="white"/>
                                         <rect x="120" y="190" width="80" height="10" rx="2" fill="white"/>
-                                        
-                                        {/* Tags */}
                                         <rect x="80" y="60" width="70" height="25" rx="12.5" fill="#FCD34D"/>
                                         <rect x="160" y="60" width="70" height="25" rx="12.5" fill="#34D399"/>
                                         <rect x="240" y="60" width="70" height="25" rx="12.5" fill="#60A5FA"/>
-                                        
-                                        {/* Circle accents */}
                                         <circle cx="320" cy="220" r="30" fill="rgba(255,255,255,0.2)"/>
                                         <circle cx="80" cy="250" r="20" fill="rgba(255,255,255,0.2)"/>
                                     </svg>
@@ -91,6 +179,22 @@ export default function KategoriEdit() {
                             <h2 className="text-3xl font-bold text-purple-600 mb-8 text-center">
                                 Edit Kategori
                             </h2>
+
+                            {/* Tampilkan data kategori asli */}
+                            {originalData.nama_kategori && (
+                                <div className="mb-6 p-4 bg-blue-50 border border-blue-300 rounded">
+                                    <h3 className="font-semibold text-blue-700 mb-2">Data Kategori Saat Ini:</h3>
+                                    <p><strong>Nama Kategori:</strong> {originalData.nama_kategori}</p>
+                                    <p><strong>Deskripsi:</strong> {originalData.deskripsi}</p>
+                                </div>
+                            )}
+
+                            {/* Error message */}
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                                    {error}
+                                </div>
+                            )}
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Nama Kategori */}
@@ -100,8 +204,8 @@ export default function KategoriEdit() {
                                     </label>
                                     <input
                                         type="text"
-                                        name="nama"
-                                        value={formData.nama}
+                                        name="nama_kategori"  
+                                        value={formData.nama_kategori}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         placeholder="Masukkan nama kategori"
@@ -130,11 +234,12 @@ export default function KategoriEdit() {
                                     <button
                                         type="submit"
                                         className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
+                                        disabled={isLoading}
                                     >
-                                        Simpan Perubahan 
+                                        {isLoading ? "Menyimpan..." : "Simpan Perubahan"}
                                     </button>
                                     <Link
-                                        to="#"
+                                        to="/kategori"
                                         className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 flex items-center justify-center"
                                     >
                                         Batal
@@ -144,10 +249,8 @@ export default function KategoriEdit() {
                         </div>
                     </div>
                 </div>
-                
-                
             </div>
-            
+
             {/* Grid Pattern Style */}
             <style jsx>{`
                 .bg-grid-pattern {
