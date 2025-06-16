@@ -1,21 +1,139 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { FaEdit, FaTrash, FaPlus, FaSearch, FaMinus } from "react-icons/fa";
+import Swal from 'sweetalert2';
+import { getBarang, deleteBarang } from "../../../_service/barang";
 
 export default function BarangIndex() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [barangList, setBarangList] = useState([]); 
+  const [filteredBarang, setFilteredBarang] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [userName, setUserName] = useState("User");
+  const navigate = useNavigate();
 
-  // Simple handlers for the actions
-  const handleEdit = (id) => {
-    console.log("Edit barang with id:", id);
-  };
-
-  const handleDelete = (id) => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus barang ini?")) {
-      console.log("Delete barang with id:", id);
+  const loadBarangData = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getBarang();
+      console.log("=== BARANG DATA DEBUG ===");
+      console.log("Raw barang data:", data);
+      if (data.length > 0) {
+        console.log("Sample barang structure:", data[0]);
+        console.log("Barang ID field:", data[0]?.barang_id || data[0]?.id || data[0]?.product_id);
+      }
+      console.log("========================");
+      setBarangList(data);
+      setFilteredBarang(data);
+      setError("");
+    } catch (error) {
+      console.error("Error loading barang:", error);
+      setError("Failed to load barang data");
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    const checkAuthAndLoadData = async () => {
+      try {
+        // Check authentication
+        const token = localStorage.getItem("token");
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+
+        if (!token || !userData || !userData.role) {
+          navigate("/login");
+          return;
+        }
+
+        // Set user name
+        if (userData.name) {
+          setUserName(userData.name);
+        }
+
+        // Load barang data
+        await loadBarangData();
+      } catch (error) {
+        console.error("Error checking auth:", error);
+        navigate("/login");
+      }
+    };
+
+    checkAuthAndLoadData();
+  }, [navigate]);
+
+  useEffect(() => {
+    const filtered = barangList.filter(barang =>
+      barang.nama_barang?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      barang.kategori?.nama_kategori?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredBarang(filtered);
+  }, [searchTerm, barangList]);
+
+  const handleEdit = (barang) => {
+    const barangId = barang.barang_id || barang.id || barang.product_id;
+    console.log("Edit button clicked for barang:", barang);
+    console.log("Barang ID:", barangId);
+    navigate(`/admin/barang/edit/${barangId}`);
+  };
+
+  const handleDelete = async (barang) => {
+    const barangId = barang.barang_id || barang.id || barang.product_id;
+    const barangName = barang.nama_barang || 'barang ini';
+    
+    try {
+      const result = await Swal.fire({
+        title: 'Apakah Anda yakin?',
+        text: `Anda akan menghapus barang "${barangName}". Tindakan ini tidak dapat dibatalkan!`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Ya, Hapus!',
+        cancelButtonText: 'Batal'
+      });
+
+      if (result.isConfirmed) {
+        // Show loading
+        
+        await deleteBarang(barangId);
+        await loadBarangData(); // Reload data after deletion
+        
+        // Show success message
+        await Swal.fire({
+          icon: 'success',
+          title: 'Berhasil!',
+          text: `Barang "${barangName}" berhasil dihapus.`,
+          confirmButtonText: 'OK',
+          confirmButtonColor: '#7C3AED'
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting barang:", error);
+      
+      // Show error message
+      await Swal.fire({
+        icon: 'error',
+        title: 'Gagal!',
+        text: 'Terjadi kesalahan saat menghapus barang. Silakan coba lagi.',
+        confirmButtonText: 'OK',
+        confirmButtonColor: '#7C3AED'
+      });
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-blue-100 pt-20 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading barang data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-blue-100 pt-20 relative overflow-hidden">
@@ -49,13 +167,19 @@ export default function BarangIndex() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-semibold text-gray-800 mb-2">
-            Hello, Admin! 👋
+            Hello, {userName}! 👋
           </h1>
         </div>
 
         {/* Barang Section */}
         <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg p-6">
           <h2 className="text-2xl font-bold text-center mb-8">BARANG</h2>
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+              {error}
+            </div>
+          )}
 
           {/* Actions Bar */}
           <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
@@ -97,45 +221,54 @@ export default function BarangIndex() {
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b hover:bg-gray-50">
-                  <td className="py-3 px-4">7</td>
-                  <td className="py-3 px-4">Sabun Herbal Alami</td>
-                  <td className="py-3 px-4">Kosmetik</td>
-                  <td className="py-3 px-4">Pcs</td>
-                  <td className="py-3 px-4">12</td>
-                  <td className="py-3 px-4">5</td>
-                  <td className="py-3 px-4">
-                    <div className="flex justify-center gap-2">
-                      <Link to="/admin/barang/masuk/1" className="flex items-center gap-1 bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 transition">
-                        <FaPlus className="text-sm" />
-                        <span className="text-sm">Barang Masuk</span>
-                      </Link>
-                      <Link to="/admin/barang/keluar/1" className="flex items-center gap-1 bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition">
-                        <FaMinus className="text-sm" />
-                        <span className="text-sm">Barang Keluar</span>
-                      </Link>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex justify-center gap-2">
-                      <button
-                        onClick={() => handleEdit(7)}
-                        className="flex items-center gap-1 bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 transition"
-                      >
-                        <FaEdit className="text-sm" />
-                        <span className="text-sm">Edit</span>
-                      </button>
-                      <button
-                        onClick={() => handleDelete(7)}
-                        className="flex items-center gap-1 bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition"
-                      >
-                        <FaTrash className="text-sm" />
-                        <span className="text-sm">Hapus</span>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-                
+                {filteredBarang.length > 0 ? (
+                  filteredBarang.map((barang, index) => (
+                    <tr key={barang.barang_id || barang.id || barang.product_id || index} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-4">{index + 1}</td>
+                      <td className="py-3 px-4">{barang.nama_barang}</td>
+                      <td className="py-3 px-4">{barang.kategori?.nama_kategori || '-'}</td>
+                      <td className="py-3 px-4">{barang.satuan}</td>
+                      <td className="py-3 px-4">{barang.stok}</td>
+                      <td className="py-3 px-4">{barang.batas_minimum}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex justify-center gap-2">
+                          <Link to={`/admin/barang/masuk/${barang.barang_id || barang.id || barang.product_id}`} className="flex items-center gap-1 bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 transition">
+                            <FaPlus className="text-sm" />
+                            <span className="text-sm">Barang Masuk</span>
+                          </Link>
+                          <Link to={`/admin/barang/keluar/${barang.barang_id || barang.id || barang.product_id}`} className="flex items-center gap-1 bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition">
+                            <FaMinus className="text-sm" />
+                            <span className="text-sm">Barang Keluar</span>
+                          </Link>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={() => handleEdit(barang)}
+                            className="flex items-center gap-1 bg-yellow-500 text-white px-3 py-1 rounded-md hover:bg-yellow-600 transition"
+                          >
+                            <FaEdit className="text-sm" />
+                            <span className="text-sm">Edit</span>
+                          </button>
+                          <button
+                            onClick={() => handleDelete(barang)}
+                            className="flex items-center gap-1 bg-red-500 text-white px-3 py-1 rounded-md hover:bg-red-600 transition"
+                          >
+                            <FaTrash className="text-sm" />
+                            <span className="text-sm">Hapus</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="8" className="py-8 text-center text-gray-500">
+                      {searchTerm ? 'No barang found matching your search.' : 'No barang data available.'}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -143,7 +276,7 @@ export default function BarangIndex() {
           {/* Pagination */}
           <div className="mt-6 flex items-center justify-between">
             <div className="text-sm text-gray-600">
-              Showing 1 to 3 of 3 entries
+              Showing {filteredBarang.length} entries
             </div>
             <div className="flex gap-1">
               <button
