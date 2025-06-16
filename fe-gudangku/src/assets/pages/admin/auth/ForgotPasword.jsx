@@ -34,7 +34,7 @@ export default function ForgotPassword() {
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-[#6556e8] mb-2">Forgot Password</h2>
               <p className="text-gray-600">
-                Enter the email associated with your account and we'll send you a link to reset your password.
+                Masukkan email yang terhubung dengan akun Anda, dan kami akan mengirimkan tautan untuk mengatur ulang kata sandi Anda.
               </p>
             </div>
 

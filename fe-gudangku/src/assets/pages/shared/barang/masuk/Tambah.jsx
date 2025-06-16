@@ -1,27 +1,95 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { FaArrowLeft, FaBox, FaTruck, FaCalendarAlt } from "react-icons/fa";
+import Swal from 'sweetalert2';
+import { createStockIn } from "../../../../_service/stockIn";
+import { getBarang } from "../../../../_service/barang";
+import { getSupplier } from "../../../../_service/supplier";
 
 export default function TambahBarangMasuk() {
+    const { id } = useParams(); // barang_id from URL
+    const navigate = useNavigate();
+    
+    // Helper function to get Indonesian local time
+    const getIndonesianDateTime = () => {
+        const now = new Date();
+        // Create a new date with Indonesian timezone (UTC+7)
+        const indonesianTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+        return indonesianTime.toISOString().slice(0, 16);
+    };
+
     const [formData, setFormData] = useState({
-        barang: "",
-        supplier: "",
+        barang_id: id || "",
+        supplier_id: "",
         jumlah_masuk: "",
-        tanggal: new Date().toISOString().split('T')[0]  // Default to today's date
+        tanggal_masuk: getIndonesianDateTime() // Default to Indonesian current datetime
     });
+    const [barangList, setBarangList] = useState([]);
+    const [supplierList, setSupplierList] = useState([]);
+    const [selectedBarang, setSelectedBarang] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isLoadingData, setIsLoadingData] = useState(true);
+    const [error, setError] = useState("");
 
-    // Sample data for dropdowns
-    const barangOptions = [
-        { id: 1, nama: "Minuman Jahe Merah" },
-        { id: 2, nama: "Sabun Herbal Alami" },
-        { id: 3, nama: "Madu Asli Rasa Bunga" }
-    ];
+    // Check authentication and load data on component mount
+    useEffect(() => {
+        const checkAuthAndLoadData = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                const userData = JSON.parse(localStorage.getItem('user') || '{}');
+                
+                if (!token || !userData || !userData.role) {
+                    navigate('/login');
+                    return;
+                }
 
-    const supplierOptions = [
-        { id: 1, nama: "PT. Sumber Rejeki" },
-        { id: 2, nama: "CV. Maju Bersama" },
-        { id: 3, nama: "UD. Makmur Jaya" }
-    ];
+                await Promise.all([loadBarangData(), loadSupplierData()]);
+            } catch (error) {
+                console.error("Error checking auth:", error);
+                navigate('/login');
+            }
+        };
+
+        checkAuthAndLoadData();
+    }, [navigate, id]);
+
+    const loadBarangData = async () => {
+        try {
+            const data = await getBarang();
+            setBarangList(data);
+            
+            // If there's an ID in params, find and set the selected barang
+            if (id) {
+                const barang = data.find(b => 
+                    (b.barang_id && b.barang_id.toString() === id) || 
+                    (b.id && b.id.toString() === id) ||
+                    (b.product_id && b.product_id.toString() === id)
+                );
+                if (barang) {
+                    setSelectedBarang(barang);
+                    setFormData(prev => ({
+                        ...prev,
+                        barang_id: barang.barang_id || barang.id || barang.product_id
+                    }));
+                }
+            }
+        } catch (error) {
+            console.error("Error fetching barang:", error);
+            setError("Failed to load barang data");
+        }
+    };
+
+    const loadSupplierData = async () => {
+        try {
+            const data = await getSupplier();
+            setSupplierList(data);
+        } catch (error) {
+            console.error("Error fetching suppliers:", error);
+            setError("Failed to load supplier data");
+        } finally {
+            setIsLoadingData(false);
+        }
+    };
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -29,12 +97,125 @@ export default function TambahBarangMasuk() {
             ...formData,
             [name]: value
         });
+
+        // Update selected barang when barang_id changes
+        if (name === 'barang_id') {
+            const barang = barangList.find(b => 
+                (b.barang_id && b.barang_id.toString() === value) || 
+                (b.id && b.id.toString() === value) ||
+                (b.product_id && b.product_id.toString() === value)
+            );
+            setSelectedBarang(barang);
+        }
+
+        // Clear error when user types
+        if (error) setError("");
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log("Form submitted:", formData);
+        setIsLoading(true);
+        setError("");
+
+        try {
+            // Get token from localStorage
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError("Authentication required. Please login again.");
+                navigate('/login');
+                return;
+            }
+
+            // Validate required fields
+            if (!formData.barang_id || !formData.supplier_id || !formData.jumlah_masuk || !formData.tanggal_masuk) {
+                setError("Please fill in all required fields.");
+                setIsLoading(false);
+                return;
+            }
+
+            // Convert datetime to Indonesian timezone and format for API
+            const selectedDateTime = new Date(formData.tanggal_masuk);
+            const indonesianDateTime = new Date(selectedDateTime.getTime() + (7 * 60 * 60 * 1000));
+            const formattedDateTime = indonesianDateTime.toISOString().replace('T', ' ').slice(0, 19);
+
+            // Prepare data for API
+            const stockInData = {
+                barang_id: parseInt(formData.barang_id),
+                supplier_id: parseInt(formData.supplier_id),
+                jumlah_masuk: parseInt(formData.jumlah_masuk),
+                tanggal_masuk: formattedDateTime // Format: "2024-01-15 10:30:00"
+            };
+
+            console.log("=== STOCK IN SUBMISSION ===");
+            console.log("Form data:", formData);
+            console.log("Indonesian formatted datetime:", formattedDateTime);
+            console.log("Processed data:", stockInData);
+            console.log("Selected barang:", selectedBarang);
+            console.log("==========================");
+
+            const response = await createStockIn(stockInData);
+            console.log("Stock In created successfully:", response);
+            
+            // Show success notification with SweetAlert2
+            await Swal.fire({
+                icon: 'success',
+                title: 'Berhasil!',
+                text: 'Barang masuk berhasil dicatat.',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#7C3AED'
+            });
+
+            // Navigate back to barang list
+            const userData = JSON.parse(localStorage.getItem('user') || '{}');
+            if (userData.role === 'admin') {
+                navigate("/admin/barang");
+            } else {
+                navigate("/petugas/barang");
+            }
+        } catch (error) {
+            console.error("Create stock in error:", error);
+            
+            // Handle authentication errors
+            if (error.message === "Unauthenticated." || error.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                navigate('/login');
+                return;
+            }
+            
+            // Handle validation errors
+            if (error.errors) {
+                const errorMessages = Object.values(error.errors).flat().join(', ');
+                setError(errorMessages);
+            } else if (error.message) {
+                setError(error.message);
+            } else {
+                setError("Failed to create stock in record. Please try again.");
+            }
+        } finally {
+            setIsLoading(false);
+        }
     };
+
+    const handleCancel = () => {
+        const userData = JSON.parse(localStorage.getItem('user') || '{}');
+        if (userData.role === 'admin') {
+            navigate("/admin/barang");
+        } else {
+            navigate("/petugas/barang");
+        }
+    };
+
+    if (isLoadingData) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-blue-100 pt-20 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-500 mx-auto"></div>
+                    <p className="mt-4 text-gray-600">Loading data...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-purple-100 to-blue-100 pt-20 relative overflow-hidden">
@@ -92,24 +273,44 @@ export default function TambahBarangMasuk() {
                             <h2 className="text-3xl font-bold text-purple-600 mb-8 text-center">
                                 Form Barang Masuk
                             </h2>
+
+                            {error && (
+                                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                                    {error}
+                                </div>
+                            )}
+
+                            {/* Selected Barang Info */}
+                            {selectedBarang && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                    <h3 className="font-semibold text-blue-800 mb-2">Barang Yang Dipilih:</h3>
+                                    <div className="text-sm text-blue-700">
+                                        <p><strong>Nama:</strong> {selectedBarang.nama_barang}</p>
+                                        <p><strong>Stok Saat Ini:</strong> {selectedBarang.stok} {selectedBarang.satuan}</p>
+                                        <p><strong>Kategori:</strong> {selectedBarang.kategori?.nama_kategori || '-'}</p>
+                                    </div>
+                                </div>
+                            )}
                             
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {/* Barang (Item) */}
                                 <div>
-                                    <label className="block text-gray-600 text-sm mb-2">
-                                        Nama Barang
+                                    <label htmlFor="barang_id" className="block text-gray-600 text-sm mb-2">
+                                        Nama Barang <span className="text-red-500">*</span>
                                     </label>
                                     <select
-                                        name="barang"
-                                        value={formData.barang}
+                                        id="barang_id"
+                                        name="barang_id"
+                                        value={formData.barang_id}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         required
+                                        disabled={isLoading || !!id} // Disable if ID is provided from URL
                                     >
                                         <option value="">Pilih Barang</option>
-                                        {barangOptions.map(barang => (
-                                            <option key={barang.id} value={barang.id}>
-                                                {barang.nama}
+                                        {barangList.map(barang => (
+                                            <option key={barang.barang_id || barang.id || barang.product_id} value={barang.barang_id || barang.id || barang.product_id}>
+                                                {barang.nama_barang} - Stok: {barang.stok} {barang.satuan}
                                             </option>
                                         ))}
                                     </select>
@@ -117,20 +318,22 @@ export default function TambahBarangMasuk() {
 
                                 {/* Supplier */}
                                 <div>
-                                    <label className="block text-gray-600 text-sm mb-2">
-                                        Supplier
+                                    <label htmlFor="supplier_id" className="block text-gray-600 text-sm mb-2">
+                                        Supplier <span className="text-red-500">*</span>
                                     </label>
                                     <select
-                                        name="supplier"
-                                        value={formData.supplier}
+                                        id="supplier_id"
+                                        name="supplier_id"
+                                        value={formData.supplier_id}
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                         required
+                                        disabled={isLoading}
                                     >
                                         <option value="">Pilih Supplier</option>
-                                        {supplierOptions.map(supplier => (
-                                            <option key={supplier.id} value={supplier.id}>
-                                                {supplier.nama}
+                                        {supplierList.map(supplier => (
+                                            <option key={supplier.supplier_id || supplier.id} value={supplier.supplier_id || supplier.id}>
+                                                {supplier.nama_supplier || supplier.nama || supplier.name}
                                             </option>
                                         ))}
                                     </select>
@@ -138,11 +341,12 @@ export default function TambahBarangMasuk() {
 
                                 {/* Jumlah Masuk */}
                                 <div>
-                                    <label className="block text-gray-600 text-sm mb-2">
-                                        Jumlah Masuk
+                                    <label htmlFor="jumlah_masuk" className="block text-gray-600 text-sm mb-2">
+                                        Jumlah Masuk <span className="text-red-500">*</span>
                                     </label>
                                     <input
                                         type="number"
+                                        id="jumlah_masuk"
                                         name="jumlah_masuk"
                                         value={formData.jumlah_masuk}
                                         onChange={handleChange}
@@ -150,41 +354,50 @@ export default function TambahBarangMasuk() {
                                         placeholder="Masukkan jumlah barang"
                                         min="1"
                                         required
+                                        disabled={isLoading}
                                     />
                                 </div>
 
-                                {/* Tanggal */}
+                                {/* Tanggal Masuk */}
                                 <div>
-                                    <label className="block text-gray-600 text-sm mb-2">
-                                        Tanggal
+                                    <label htmlFor="tanggal_masuk" className="block text-gray-600 text-sm mb-2">
+                                        Tanggal & Waktu Masuk (WIB) <span className="text-red-500">*</span>
                                     </label>
                                     <div className="relative">
                                         <input
-                                            type="date"
-                                            name="tanggal"
-                                            value={formData.tanggal}
+                                            type="datetime-local"
+                                            id="tanggal_masuk"
+                                            name="tanggal_masuk"
+                                            value={formData.tanggal_masuk}
                                             onChange={handleChange}
                                             className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                                             required
+                                            disabled={isLoading}
                                         />
-                                        <FaCalendarAlt className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500" />
+                                        <FaCalendarAlt className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none" />
                                     </div>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Waktu Indonesia Barat (UTC+7)
+                                    </p>
                                 </div>
 
                                 {/* Submit and Cancel Buttons */}
                                 <div className="pt-6 flex gap-3">
                                     <button
                                         type="submit"
-                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg"
+                                        disabled={isLoading}
+                                        className="w-3/4 bg-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-purple-700 transition duration-300 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                                     >
-                                        Simpan
+                                        {isLoading ? "Menyimpan..." : "Simpan Barang Masuk"}
                                     </button>
-                                    <Link
-                                        to="#"
-                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 flex items-center justify-center"
+                                    <button
+                                        type="button"
+                                        onClick={handleCancel}
+                                        disabled={isLoading}
+                                        className="w-1/4 bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-300 disabled:opacity-50"
                                     >
                                         Batal
-                                    </Link>
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -194,9 +407,9 @@ export default function TambahBarangMasuk() {
                 {/* Breadcrumb Navigation */}
                 <div className="mt-6 max-w-6xl mx-auto px-2">
                     <nav className="flex text-gray-500 text-sm">
-                        <Link to="/" className="hover:text-purple-600 transition-colors">Dashboard</Link>
+                        <button onClick={() => navigate('/')} className="hover:text-purple-600 transition-colors">Dashboard</button>
                         <span className="mx-2">•</span>
-                        <Link to="/barang" className="hover:text-purple-600 transition-colors">Barang</Link>
+                        <button onClick={() => navigate('/admin/barang')} className="hover:text-purple-600 transition-colors">Barang</button>
                         <span className="mx-2">•</span>
                         <span className="text-purple-600 font-medium">Tambah Barang Masuk</span>
                     </nav>
